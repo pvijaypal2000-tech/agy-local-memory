@@ -1,0 +1,48 @@
+{
+  "memories": [
+    {
+      "key": "welcome_semantic",
+      "category": "profile",
+      "memory_type": "semantic",
+      "workspace": "global",
+      "tags": ["入门", "语义记忆"],
+      "content": "欢迎使用 Local Memory 记忆星图！暖金色星辰代表【语义记忆】，用于长期保存你的身份背景、专业方向与稳定偏好。",
+      "pinned": true,
+      "importance": 5
+    },
+    {
+      "key": "welcome_procedural",
+      "category": "preference",
+      "memory_type": "procedural",
+      "workspace": "global",
+      "tags": ["入门", "程序规范", "星图"],
+      "content": "冰蓝色星辰代表【程序记忆】，用于沉淀可复用的工作流、格式规范与避坑经验；对话里说“打开我的记忆星图”可随时刷新并在浏览器查看。",
+      "pinned": false,
+      "importance": 4
+    },
+    {
+      "key": "welcome_episodic",
+      "category": "learning",
+      "memory_type": "episodic",
+      "workspace": "global",
+      "tags": ["入门", "情景记忆", "体验"],
+      "content": "柔粉色星辰代表【情景记忆】，记录具体里程碑与阶段进展；点击星辰可点亮知识图谱星座，体验完可随时说“删除这 3 条入门示例记忆”。",
+      "pinned": false,
+      "importance": 4
+    }
+  ],
+  "edges": [
+    {
+      "src_key": "welcome_episodic",
+      "dst_key": "welcome_procedural",
+      "relation": "depends_on",
+      "weight": 1.0
+    },
+    {
+      "src_key": "welcome_procedural",
+      "dst_key": "welcome_semantic",
+      "relation": "relates_to",
+      "weight": 0.9
+    }
+  ]
+}

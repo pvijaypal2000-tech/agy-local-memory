@@ -1,0 +1,12 @@
+{
+  "name": "local-memory",
+  "displayName": "Local Memory",
+  "logo": "assets/logo.svg",
+  "description": "Pure-local cognitive graph memory engine (v2.2): semantic/episodic/procedural layers, workspace scoping, FTS5 BM25 + 1-hop graph JIT recall on PreInvocation, power-law decay, conflict evolution, and interactive Canvas 2D Star Nebula (Antigravity MCP App + offline HTML).",
+  "version": "2.2.0",
+  "suggestedPrompts": [
+    "打开我的记忆星图",
+    "记住我的专业方向、常用工具和输出偏好",
+    "按认知分类整理并查看我目前的本地记忆库"
+  ]
+}

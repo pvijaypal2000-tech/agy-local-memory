@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Antigravity · 记忆星图 (Local Memory Nebula)</title>
+<style>
+  :root {
+    --bg: #020106;
+    --glass: rgba(12, 10, 24, 0.66);
+    --glass-strong: rgba(14, 11, 28, 0.82);
+    --border: rgba(214, 202, 255, 0.16);
+    --border-hi: rgba(235, 224, 255, 0.34);
+    --text: #f3f0ff;
+    --muted: rgba(220, 212, 246, 0.64);
+    --gold: #ffd696;
+    --blue: #9ed2ff;
+    --pink: #ffaad6;
+    --dim: #9694b4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Inter', system-ui, -apple-system, sans-serif;
+    user-select: none; -webkit-font-smoothing: antialiased;
+  }
+  #stage {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #000;
+  }
+  #viewport {
+    position: relative; width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(circle at 50% 50%, #0b0514 0%, #030108 58%, #000000 100%);
+    transition: width 0.35s ease, height 0.35s ease, border-radius 0.35s ease;
+  }
+  body.portrait #viewport {
+    width: min(100vw, calc(100vh * 9 / 16));
+    height: min(100vh, calc(100vw * 16 / 9));
+    border-radius: 20px;
+    box-shadow: 0 0 80px rgba(130, 96, 220, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  canvas {
+    display: block; width: 100%; height: 100%; cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+
+  /* HUD Visibility */
+  .hud { transition: opacity 0.55s ease, transform 0.45s ease; }
+  body.hide-ui .hud { opacity: 0 !important; pointer-events: none !important; }
+  body.panel-open #legend { opacity: 0 !important; }
+  .hud-idle { opacity: 0.58; }
+  .hud-idle:hover, .hud-idle:focus-within { opacity: 1 !important; }
+
+  /* Top-left Brand & Stats */
+  #brand {
+    position: absolute; top: 22px; left: 26px; z-index: 10; pointer-events: none;
+  }
+  #brand .title {
+    font-size: 16px; font-weight: 500; letter-spacing: 0.14em;
+    color: rgba(248, 244, 255, 0.92);
+    text-shadow: 0 0 22px rgba(210, 186, 255, 0.42);
+    display: flex; align-items: center; gap: 9px;
+  }
+  #brand .spark {
+    width: 14px; height: 14px; filter: drop-shadow(0 0 6px rgba(255, 214, 150, 0.9));
+  }
+  #brand .subtitle {
+    margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: 0.04em;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  #brand .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  /* Top-right Toolbar */
+  #tools {
+    position: absolute; top: 20px; right: 24px; z-index: 20;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+    max-width: calc(100% - 340px);
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 11px; color: var(--text); font-size: 12px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  }
+  .search-box { padding: 4px 12px; }
+  .search-box input {
+    background: transparent; border: none; outline: none; color: var(--text);
+    font-size: 12px; width: 138px;
+  }
+  .search-box input::placeholder { color: rgba(210, 200, 240, 0.46); }
+  .search-clear {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 13px; line-height: 1; display: none; padding: 0 2px;
+  }
+  .search-clear.show { display: inline; }
+
+  .ws-select {
+    background: transparent; border: none; outline: none; color: var(--text);
+    font-size: 12px; cursor: pointer; max-width: 130px;
+  }
+  .ws-select option { background: #120f22; color: var(--text); }
+
+  .chip-group { padding: 3px; gap: 2px; }
+  .chip {
+    background: transparent; border: none; color: var(--muted);
+    font-size: 11.5px; padding: 4px 9px; border-radius: 999px; cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    background: rgba(220, 204, 255, 0.18); color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(235, 224, 255, 0.24);
+  }
+
+  .icon-btn {
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); color: var(--muted);
+    border-radius: 999px; padding: 6px 10px; font-size: 11.5px; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .icon-btn:hover, .icon-btn.on {
+    color: #fff; border-color: var(--border-hi);
+    background: rgba(215, 198, 255, 0.16);
+  }
+
+  /* Hover Tooltip */
+  #tooltip {
+    position: absolute; z-index: 25; pointer-events: none; opacity: 0;
+    max-width: 280px; padding: 9px 13px; border-radius: 12px;
+    background: rgba(11, 9, 22, 0.86); backdrop-filter: blur(14px);
+    border: 1px solid rgba(232, 220, 255, 0.24);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.58);
+    transition: opacity 0.16s ease;
+    transform: translate(-50%, calc(-100% - 16px));
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .t-head {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted);
+    margin-bottom: 4px;
+  }
+  #tooltip .t-body {
+    font-size: 12.5px; line-height: 1.48; color: rgba(248, 245, 255, 0.94);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  /* Bottom Detail Panel */
+  #panel {
+    position: absolute; left: 50%; bottom: 26px; z-index: 30;
+    width: min(620px, calc(100% - 36px));
+    transform: translate(-50%, 18px); opacity: 0; pointer-events: none;
+    background: var(--glass-strong); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    border: 1px solid var(--border-hi); border-radius: 18px;
+    padding: 18px 20px 16px;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.68), 0 0 40px rgba(176, 152, 255, 0.08);
+    transition: opacity 0.28s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #panel.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  body.portrait #panel { bottom: 34px; width: calc(100% - 28px); padding: 20px 18px; }
+  body.portrait #panel .p-text { font-size: 15.5px; line-height: 1.65; }
+
+  .p-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .p-meta {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted);
+  }
+  .p-star-svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .badge {
+    padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06);
+  }
+  .p-actions { display: flex; align-items: center; gap: 6px; }
+  .p-btn {
+    background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--muted); border-radius: 999px; width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; transition: all 0.2s;
+  }
+  .p-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.32); }
+  .p-btn.liked { color: #ff8ec7; border-color: rgba(255, 142, 199, 0.48); background: rgba(255, 142, 199, 0.14); }
+
+  .p-text {
+    font-size: 14.5px; line-height: 1.62; color: #f8f5ff;
+    margin-bottom: 12px; user-select: text;
+  }
+  .p-stats {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 11.5px; color: var(--muted); margin-bottom: 10px;
+  }
+  .strength-bar {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .bar-track {
+    width: 64px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #9ed2ff, #ffd696);
+  }
+  .p-tags, .p-links {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+  }
+  .tag-chip {
+    font-size: 11px; color: rgba(226, 218, 255, 0.78);
+    background: rgba(176, 158, 255, 0.12); border: 1px solid rgba(196, 180, 255, 0.18);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .link-chip {
+    font-size: 11px; color: #ffe7bf; cursor: pointer;
+    background: rgba(255, 214, 150, 0.11); border: 1px solid rgba(255, 214, 150, 0.28);
+    padding: 3px 9px; border-radius: 999px; transition: all 0.2s;
+  }
+  .link-chip:hover {
+    background: rgba(255, 214, 150, 0.24); border-color: rgba(255, 214, 150, 0.55);
+  }
+
+  /* Bottom-left Legend & Shortcut Hint */
+  #legend {
+    position: absolute; left: 24px; bottom: 22px; z-index: 10;
+    font-size: 11px; color: rgba(212, 204, 240, 0.58);
+    display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+  }
+  #legend .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  #legend .item { display: inline-flex; align-items: center; gap: 5px; }
+  #legend .sw { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+  #legend .hint { font-size: 10.5px; color: rgba(200, 190, 232, 0.42); letter-spacing: 0.03em; }
+
+  @media (max-width: 720px) {
+    #brand { top: 14px; left: 16px; }
+    #tools { top: 14px; right: 14px; max-width: calc(100% - 28px); }
+    #legend { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="viewport">
+    <canvas id="sky"></canvas>
+
+    <div id="brand" class="hud">
+      <div class="title">
+        <svg class="spark" viewBox="0 0 24 24" fill="none">
+          <path d="M12 1.5L14.4 9.6L22.5 12L14.4 14.4L12 22.5L9.6 14.4L1.5 12L9.6 9.6L12 1.5Z" fill="#ffd696"/>
+        </svg>
+        <span id="brandTitle">Antigravity · 记忆星图</span>
+      </div>
+      <div class="subtitle" id="brandStats"></div>
+    </div>
+
+    <div id="tools" class="hud">
+      <div class="pill search-box">
+        <span style="opacity:0.55">⌕</span>
+        <input id="searchInput" type="text" placeholder="搜索星域、标签或记忆…" autocomplete="off" />
+        <button id="searchClear" class="search-clear" title="清空">×</button>
+      </div>
+      <div class="pill">
+        <select id="wsSelect" class="ws-select" title="按工作区筛选"></select>
+      </div>
+      <div class="pill chip-group" id="typeChips">
+        <button class="chip active" data-type="all">全部</button>
+        <button class="chip" data-type="semantic">语义</button>
+        <button class="chip" data-type="procedural">程序</button>
+        <button class="chip" data-type="episodic">情景</button>
+      </div>
+      <button id="btnInactive" class="icon-btn" title="显示/隐藏归档与历史暗星">历史暗星</button>
+      <button id="btnReplay" class="icon-btn" title="重播开场动画 (R)">重播</button>
+      <button id="btnPortrait" class="icon-btn" title="9:16 竖屏模式 (V)">竖屏</button>
+      <button id="btnFull" class="icon-btn" title="全屏观星 (F)">全屏</button>
+      <button id="btnHide" class="icon-btn" title="隐藏全部界面 (H)">纯净</button>
+    </div>
+
+    <div id="tooltip">
+      <div class="t-head" id="tipHead"></div>
+      <div class="t-body" id="tipBody"></div>
+    </div>
+
+    <div id="panel" class="hud">
+      <div class="p-top">
+        <div class="p-meta" id="panelMeta"></div>
+        <div class="p-actions">
+          <button id="btnLike" class="p-btn" title="点亮收藏星芒">♡</button>
+          <button id="btnClose" class="p-btn" title="关闭 (Esc)">×</button>
+        </div>
+      </div>
+      <div class="p-text" id="panelText"></div>
+      <div class="p-stats" id="panelStats"></div>
+      <div class="p-tags" id="panelTags"></div>
+      <div class="p-links" id="panelLinks"></div>
+    </div>
+
+    <div id="legend" class="hud">
+      <div class="row">
+        <span class="item"><span class="sw" style="background:#ffd696;color:#ffd696"></span>语义档案 (Semantic)</span>
+        <span class="item"><span class="sw" style="background:#9ed2ff;color:#9ed2ff"></span>程序规范 (Procedural)</span>
+        <span class="item"><span class="sw" style="background:#ffaad6;color:#ffaad6"></span>情景历程 (Episodic)</span>
+        <span class="item"><span class="sw" style="background:#9694b4;color:#9694b4"></span>归档/演化暗星</span>
+      </div>
+      <div class="hint">拖拽旋转 · 滚轮缩放 · 点击星辰点亮知识图谱星座 · 快捷键 R 重播 / V 竖屏 / F 全屏 / H 纯净</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const DATA = /*__NEBULA_DATA__*/ null;
+
+  const fallbackData = {
+    title: 'Antigravity · 记忆星图',
+    generatedAt: new Date().toISOString(),
+    memories: [],
+    edges: [],
+    workspaces: ['global']
+  };
+  const payload = DATA || fallbackData;
+  const RAW_MEMORIES = Array.isArray(payload.memories) ? payload.memories : [];
+  const RAW_EDGES = Array.isArray(payload.edges) ? payload.edges : [];
+
+  const TYPE_INFO = {
+    semantic:   { label: '语义', rgb: [255, 214, 150], hex: '#ffd696' },
+    procedural: { label: '程序', rgb: [158, 210, 255], hex: '#9ed2ff' },
+    episodic:   { label: '情景', rgb: [255, 170, 214], hex: '#ffaad6' },
+    inactive:   { label: '历史', rgb: [148, 146, 178], hex: '#9694b4' }
+  };
+
+  const REL_LABELS = {
+    depends_on: '依赖',
+    relates_to: '关联',
+    derived_from: '衍生自',
+    part_of: '属于',
+    supersedes: '演化替代',
+    contradicts: '冲突'
+  };
+
+  const params = new URLSearchParams(location.search);
+  const STILL_MODE = params.has('still');
+  const INIT_PORTRAIT = params.has('v');
+  const INIT_PICK = params.get('pick') ? Number(params.get('pick')) : null;
+
+  // Deterministic PRNG (Mulberry32) so galaxy layout is stable across reloads
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function() {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashStr(s) {
+    let h = 2166136261;
+    const str = String(s || '');
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  // ---- Offscreen Glow Sprites & Procedural 4-Octave Dust Clouds ----
+  const spriteCache = new Map();
+  function dotSprite(rgbStr, soft = true) {
+    const k = rgbStr + (soft ? ':s' : ':c');
+    if (spriteCache.has(k)) return spriteCache.get(k);
+    const sz = 128, c = document.createElement('canvas');
+    c.width = sz; c.height = sz;
+    const g = c.getContext('2d');
+    const half = sz / 2;
+    const grad = g.createRadialGradient(half, half, 0, half, half, half);
+    if (soft) {
+      grad.addColorStop(0.0, `rgba(${rgbStr}, 0.95)`);
+      grad.addColorStop(0.18, `rgba(${rgbStr}, 0.58)`);
+      grad.addColorStop(0.48, `rgba(${rgbStr}, 0.16)`);
+      grad.addColorStop(0.78, `rgba(${rgbStr}, 0.03)`);
+      grad.addColorStop(1.0, `rgba(${rgbStr}, 0)`);
+    } else {
+      grad.addColorStop(0.0, `rgba(255,255,255, 1)`);
+      grad.addColorStop(0.22, `rgba(${rgbStr}, 0.85)`);
+      grad.addColorStop(0.55, `rgba(${rgbStr}, 0.22)`);
+      grad.addColorStop(1.0, `rgba(${rgbStr}, 0)`);
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, sz, sz);
+    spriteCache.set(k, c);
+    return c;
+  }
+
+  function makeDustSprite(seed) {
+    const rand = mulberry32(seed);
+    const sz = 96;
+    const c = document.createElement('canvas');
+    c.width = sz; c.height = sz;
+    const g = c.getContext('2d');
+    const img = g.createImageData(sz, sz);
+    const gridN = 16;
+    const grid = new Float32Array(gridN * gridN);
+    for (let i = 0; i < grid.length; i++) grid[i] = rand();
+
+    function vnoise(x, y) {
+      const xi = Math.floor(x) & (gridN - 1);
+      const yi = Math.floor(y) & (gridN - 1);
+      const xf = x - Math.floor(x);
+      const yf = y - Math.floor(y);
+      const u = xf * xf * (3 - 2 * xf);
+      const v = yf * yf * (3 - 2 * yf);
+      const x1 = (xi + 1) & (gridN - 1);
+      const y1 = (yi + 1) & (gridN - 1);
+      const a = grid[yi * gridN + xi];
+      const b = grid[yi * gridN + x1];
+      const c1 = grid[y1 * gridN + xi];
+      const d = grid[y1 * gridN + x1];
+      return (a * (1 - u) + b * u) * (1 - v) + (c1 * (1 - u) + d * u) * v;
+    }
+
+    const half = sz / 2;
+    for (let y = 0; y < sz; y++) {
+      for (let x = 0; x < sz; x++) {
+        const dx = (x - half) / half;
+        const dy = (y - half) / half;
+        const r = Math.hypot(dx, dy);
+        if (r >= 1) continue;
+        const falloff = Math.pow(1 - r * r, 1.9);
+        const fbm =
+          0.52 * vnoise(x * 0.08, y * 0.08) +
+          0.26 * vnoise(x * 0.16 + 3.1, y * 0.16 + 1.7) +
+          0.14 * vnoise(x * 0.32 + 7.4, y * 0.32 + 5.2) +
+          0.08 * vnoise(x * 0.64 + 11.2, y * 0.64 + 2.9);
+        const alpha = Math.max(0, Math.min(1, falloff * fbm * 0.62));
+        const idx = (y * sz + x) * 4;
+        img.data[idx] = 8;
+        img.data[idx + 1] = 6;
+        img.data[idx + 2] = 14;
+        img.data[idx + 3] = Math.round(alpha * 255);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  // ---- Build 5-Layer Spiral Galaxy (Inspired by ShiGuang v3.0 Aesthetics) ----
+  const GAL_R = 5.8;
+  const SPIRAL = 1.24;
+  const gRand = mulberry32(20261122);
+
+  function gauss(r) {
+    let u = 0, v = 0;
+    while (u === 0) u = r();
+    while (v === 0) v = r();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  }
+
+  function armColor(t) {
+    // 0 = warm pink-white core -> 0.5 = rose -> 1.0 = lavender outer arm
+    if (t < 0.45) {
+      const k = t / 0.45;
+      return `${Math.round(255 - 6 * k)},${Math.round(226 - 34 * k)},${Math.round(242 - 10 * k)}`;
+    }
+    const k = Math.min(1, (t - 0.45) / 0.55);
+    return `${Math.round(249 - 46 * k)},${Math.round(192 - 18 * k)},${Math.round(232 + 16 * k)}`;
+  }
+
+  const PARTICLES = [];
+  // Layer 1: 16,500 Dual Spiral Arm particles
+  for (let i = 0; i < 16500; i++) {
+    const arm = i % 2;
+    const u = Math.pow(gRand(), 0.78);
+    const rad = 0.25 + u * (GAL_R - 0.25);
+    const stray = gRand() < 0.42;
+    const spread = stray ? (gRand() * Math.PI * 2) : (gauss(gRand) * (0.28 + 0.34 * u));
+    const ang = arm * Math.PI + Math.log(rad + 0.45) * SPIRAL * 2.15 + spread;
+    const thick = (0.26 * (1 - 0.68 * u) + 0.04) * (stray ? 1.45 : 1.0);
+    const y = gauss(gRand) * thick;
+    const colBucket = armColor(Math.round(u * 10) / 10);
+    PARTICLES.push({
+      x: Math.cos(ang) * rad,
+      y,
+      z: Math.sin(ang) * rad,
+      rgb: colBucket,
+      sz: 0.82 + gRand() * 1.25,
+      a: (stray ? 0.24 : 0.46) * (1 - 0.38 * u) + gRand() * 0.22,
+      slow: false
+    });
+  }
+  // Soft luminous spiral arm gas clouds (underneath dust lanes for silky nebula depth)
+  for (let i = 0; i < 120; i++) {
+    const arm = i % 2;
+    const u = 0.08 + gRand() * 0.78;
+    const rad = 0.6 + u * (GAL_R * 0.84);
+    const ang = arm * Math.PI + Math.log(rad + 0.45) * SPIRAL * 2.15 + gauss(gRand) * 0.22;
+    PARTICLES.push({
+      x: Math.cos(ang) * rad,
+      y: gauss(gRand) * 0.16,
+      z: Math.sin(ang) * rad,
+      rgb: u < 0.45 ? '235,176,225' : '168,142,238',
+      sz: 12 + gRand() * 14,
+      a: 0.028 + gRand() * 0.022,
+      slow: true
+    });
+  }
+  // Layer 2: 1,500 Nuclear Bulge particles
+  for (let i = 0; i < 1500; i++) {
+    const r = Math.abs(gauss(gRand)) * 0.55;
+    const theta = gRand() * Math.PI * 2;
+    const phi = Math.acos(2 * gRand() - 1);
+    PARTICLES.push({
+      x: r * Math.sin(phi) * Math.cos(theta) * 1.25,
+      y: r * Math.cos(phi) * 0.58,
+      z: r * Math.sin(phi) * Math.sin(theta) * 1.25,
+      rgb: '255,244,252',
+      sz: 0.8 + gRand() * 1.2,
+      a: 0.28 + gRand() * 0.32,
+      slow: false
+    });
+  }
+  // Layer 3: 3,000 Galactic Halo particles (fake depth-of-field soft sprites)
+  for (let i = 0; i < 3000; i++) {
+    const r = 1.2 + Math.pow(gRand(), 0.7) * (GAL_R * 1.38);
+    const theta = gRand() * Math.PI * 2;
+    const y = gauss(gRand) * 1.55;
+    PARTICLES.push({
+      x: Math.cos(theta) * r,
+      y,
+      z: Math.sin(theta) * r,
+      rgb: '196,204,252',
+      sz: 2.2 + gRand() * 3.4,
+      a: 0.08 + gRand() * 0.14,
+      slow: true
+    });
+  }
+  // Layer 4: 4,800 Distant Background Starfield (blurred depth)
+  for (let i = 0; i < 4800; i++) {
+    const r = 9.5 + gRand() * 13.5;
+    const theta = gRand() * Math.PI * 2;
+    const phi = Math.acos(2 * gRand() - 1);
+    PARTICLES.push({
+      x: r * Math.sin(phi) * Math.cos(theta),
+      y: r * Math.cos(phi),
+      z: r * Math.sin(phi) * Math.sin(theta),
+      rgb: gRand() < 0.38 ? '255,226,182' : '226,232,255',
+      sz: 1.8 + gRand() * 3.0,
+      a: 0.09 + gRand() * 0.20,
+      slow: true
+    });
+  }
+  // Layer 5: 300 Bright Spiral Giant Stars
+  for (let i = 0; i < 300; i++) {
+    const arm = i % 2;
+    const u = 0.12 + gRand() * 0.84;
+    const rad = 0.5 + u * (GAL_R - 0.6);
+    const ang = arm * Math.PI + Math.log(rad + 0.45) * SPIRAL * 2.15 + gauss(gRand) * 0.24;
+    PARTICLES.push({
+      x: Math.cos(ang) * rad,
+      y: gauss(gRand) * 0.14,
+      z: Math.sin(ang) * rad,
+      rgb: gRand() < 0.48 ? '255,228,188' : '236,232,255',
+      sz: 2.4 + gRand() * 2.6,
+      a: 0.45 + gRand() * 0.42,
+      slow: true
+    });
+  }
+
+  // Dark dust lane sprites along inner arms
+  const DUST_SPRITES = [makeDustSprite(101), makeDustSprite(202), makeDustSprite(303)];
+  const NEB_DUST = [];
+  for (let i = 0; i < 240; i++) {
+    const arm = i % 2;
+    const u = 0.08 + gRand() * 0.72;
+    const rad = 0.65 + u * (GAL_R * 0.78);
+    const ang = arm * Math.PI + Math.log(rad + 0.45) * SPIRAL * 2.15 - 0.16 + gauss(gRand) * 0.16;
+    NEB_DUST.push({
+      x: Math.cos(ang) * rad,
+      y: gauss(gRand) * 0.08,
+      z: Math.sin(ang) * rad,
+      sz: 0.48 + gRand() * 0.62,
+      a: 0.24 + gRand() * 0.22,
+      tex: DUST_SPRITES[i % DUST_SPRITES.length]
+    });
+  }
+
+  // ---- Build Memory Stars from Local Memory v2.0 Data ----
+  let likedSet = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem('antigravity-nebula-likes') || '[]');
+    if (Array.isArray(saved)) likedSet = new Set(saved.map(Number));
+  } catch (_) {}
+  function persistLikes() {
+    try { localStorage.setItem('antigravity-nebula-likes', JSON.stringify([...likedSet])); } catch (_) {}
+  }
+
+  // Group cluster radii by first tag or workspace+category
+  const sortedByTime = [...RAW_MEMORIES].sort((a, b) =>
+    String(a.created_at || '').localeCompare(String(b.created_at || '')) || (a.id - b.id)
+  );
+  const rankMap = new Map();
+  sortedByTime.forEach((m, idx) => rankMap.set(m.id, sortedByTime.length > 1 ? idx / (sortedByTime.length - 1) : 0.5));
+
+  const clusterKey = (m) => (m.tags && m.tags.length ? m.tags[0] : `${m.workspace || 'global'}:${m.category || 'fact'}`);
+  const clusterAcc = new Map();
+  RAW_MEMORIES.forEach((m) => {
+    const k = clusterKey(m);
+    const r = rankMap.get(m.id) ?? 0.5;
+    const cur = clusterAcc.get(k) || { sum: 0, n: 0 };
+    cur.sum += r; cur.n += 1;
+    clusterAcc.set(k, cur);
+  });
+
+  const N_MEM = RAW_MEMORIES.length;
+  const STARS = RAW_MEMORIES.map((m, idx) => {
+    const mr = mulberry32(hashStr(`mem:${m.id}:${m.key || m.content}`));
+    const isActive = (m.status || 'active') === 'active';
+    const mtype = isActive ? (m.memory_type || 'semantic') : 'inactive';
+    const info = TYPE_INFO[mtype] || TYPE_INFO.semantic;
+    const tRank = rankMap.get(m.id) ?? 0.5;
+    const cl = clusterAcc.get(clusterKey(m));
+    const clMean = cl ? cl.sum / cl.n : 0.5;
+    const normR = 0.45 * tRank + 0.55 * clMean;
+
+    // Graceful spatial distribution for both small (4 stars) and large (200 stars) galaxies
+    const baseRad = N_MEM <= 12
+      ? 1.55 + (idx / Math.max(1, N_MEM)) * 2.55 + (mr() - 0.5) * 0.45
+      : 1.05 + normR * 3.85 + (mr() - 0.5) * 0.55;
+    const armIdx = (m.memory_type === 'procedural' ? 1 : 0);
+    const goldenAngle = idx * 2.39996323;
+    const baseAng = N_MEM <= 12
+      ? goldenAngle + 0.65
+      : armIdx * Math.PI + Math.log(baseRad + 0.45) * SPIRAL * 2.15 + (mr() - 0.5) * 1.15;
+
+    const impNorm = Math.max(0.2, Math.min(1.0, (Number(m.importance || 3)) / 5));
+    const recency = Math.max(0.08, Math.min(1.0, Number(m.recency_strength ?? 1.0)));
+
+    // Vertical stratification: pinned & high-importance float above; inactive/low sink below
+    let y;
+    if (!isActive) {
+      y = -(0.22 + mr() * 0.34);
+    } else if (m.pinned || impNorm >= 0.8) {
+      y = 0.16 + impNorm * 0.32 + mr() * 0.12;
+    } else if (impNorm >= 0.55) {
+      y = 0.04 + mr() * 0.22;
+    } else {
+      y = mr() < 0.35 ? -(0.08 + mr() * 0.22) : (0.02 + mr() * 0.12);
+    }
+
+    const baseSize = (3.6 + impNorm * 4.4 + (m.pinned ? 1.35 : 0)) * (0.72 + 0.40 * recency) * (isActive ? 1.0 : 0.68);
+    return {
+      ...m,
+      isActive,
+      visualType: mtype,
+      rgb: info.rgb,
+      rgbStr: info.rgb.join(','),
+      hex: info.hex,
+      x: Math.cos(baseAng) * baseRad,
+      y,
+      z: Math.sin(baseAng) * baseRad,
+      size: baseSize,
+      impNorm,
+      recency,
+      phase: mr() * Math.PI * 2,
+      igniteAt: 0.75 + (idx / Math.max(1, N_MEM)) * 1.45,
+      cluster: clusterKey(m),
+      sx: 0, sy: 0, sr: 0, depth: 0, visible: true, dimmed: false
+    };
+  });
+
+  const starById = new Map(STARS.map(s => [s.id, s]));
+  const newestStar = [...STARS].filter(s => s.isActive).sort((a, b) =>
+    String(b.updated_at || '').localeCompare(String(a.updated_at || '')) || (b.id - a.id)
+  )[0] || STARS[STARS.length - 1] || null;
+
+  // Build adjacency from real knowledge graph edges + fallback peer links
+  const graphAdj = new Map();
+  STARS.forEach(s => graphAdj.set(s.id, []));
+  RAW_EDGES.forEach(e => {
+    const s = starById.get(e.src_id);
+    const d = starById.get(e.dst_id);
+    if (!s || !d) return;
+    graphAdj.get(s.id).push({ peer: d, relation: e.relation || 'relates_to', weight: e.weight || 1.0, dir: 'out', real: true });
+    graphAdj.get(d.id).push({ peer: s, relation: e.relation || 'relates_to', weight: e.weight || 1.0, dir: 'in', real: true });
+  });
+
+  // Fallback soft constellation neighbor for stars without explicit graph edges
+  function getConstellationLinks(star) {
+    const explicit = graphAdj.get(star.id) || [];
+    if (explicit.length > 0) return explicit;
+    // Connect softly to up to 2 nearest active stars in same workspace or category
+    const peers = STARS
+      .filter(o => o.id !== star.id && o.isActive && (o.cluster === star.cluster || o.workspace === star.workspace))
+      .map(o => ({ peer: o, d: Math.hypot(o.x - star.x, o.y - star.y, o.z - star.z) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 2);
+    return peers.map(p => ({ peer: p.peer, relation: 'cluster', weight: 0.6, dir: 'undir', real: false }));
+  }
+
+  // ---- UI Setup & Filters ----
+  const state = {
+    search: '',
+    workspace: 'all',
+    typeFilter: 'all',
+    showInactive: false,
+    selected: null,
+    hovered: null,
+    // Camera
+    theta: 0.55,
+    phi: 0.42,
+    dist: STILL_MODE ? 9.2 : 13.8,
+    targetTheta: null,
+    targetPhi: null,
+    targetDist: null,
+    dragging: false,
+    dragMoved: false,
+    lastX: 0,
+    lastY: 0,
+    introT: STILL_MODE ? 99 : 0,
+    idleTimer: 0
+  };
+
+  if (INIT_PORTRAIT) document.body.classList.add('portrait');
+
+  // Populate header stats & workspace dropdown
+  document.getElementById('brandTitle').textContent = payload.title || 'Antigravity · 记忆星图';
+  const counts = { semantic: 0, procedural: 0, episodic: 0, inactive: 0 };
+  STARS.forEach(s => { counts[s.visualType] = (counts[s.visualType] || 0) + 1; });
+  document.getElementById('brandStats').innerHTML =
+    `<span><i class="dot" style="background:#ffd696"></i>语义 ${counts.semantic}</span>` +
+    `<span><i class="dot" style="background:#9ed2ff"></i>程序 ${counts.procedural}</span>` +
+    `<span><i class="dot" style="background:#ffaad6"></i>情景 ${counts.episodic}</span>` +
+    `<span>图谱关系 ${RAW_EDGES.length}</span>` +
+    (counts.inactive ? `<span>历史暗星 ${counts.inactive}</span>` : '');
+
+  const wsSelect = document.getElementById('wsSelect');
+  const uniqueWs = [...new Set(STARS.map(s => s.workspace || 'global'))];
+  wsSelect.innerHTML = `<option value="all">全部星域</option>` + uniqueWs.map(w => {
+    const label = w === 'global' ? '全局档案' : (w.split('/').pop() || w);
+    return `<option value="${w.replace(/"/g, '&quot;')}">${label}</option>`;
+  }).join('');
+
+  function applyFilters() {
+    const q = state.search.trim().toLowerCase();
+    STARS.forEach(s => {
+      if (!s.isActive && !state.showInactive) {
+        s.visible = false;
+        s.dimmed = false;
+        return;
+      }
+      if (state.workspace !== 'all' && (s.workspace || 'global') !== state.workspace) {
+        s.visible = true;
+        s.dimmed = true;
+        return;
+      }
+      if (state.typeFilter !== 'all' && s.memory_type !== state.typeFilter) {
+        s.visible = true;
+        s.dimmed = true;
+        return;
+      }
+      s.visible = true;
+      if (q) {
+        const hay = `${s.content || ''} ${s.key || ''} ${(s.tags || []).join(' ')} ${s.workspace || ''}`.toLowerCase();
+        s.dimmed = !hay.includes(q);
+      } else {
+        s.dimmed = false;
+      }
+    });
+  }
+  applyFilters();
+
+  // Detail Panel Rendering
+  const panel = document.getElementById('panel');
+  const panelMeta = document.getElementById('panelMeta');
+  const panelText = document.getElementById('panelText');
+  const panelStats = document.getElementById('panelStats');
+  const panelTags = document.getElementById('panelTags');
+  const panelLinks = document.getElementById('panelLinks');
+  const btnLike = document.getElementById('btnLike');
+
+  function selectStar(star, fly = false) {
+    state.selected = star;
+    document.body.classList.toggle('panel-open', Boolean(star));
+    if (!star) {
+      panel.classList.remove('show');
+      return;
+    }
+    if (fly) {
+      state.targetTheta = Math.atan2(star.x, star.z);
+      state.targetPhi = Math.max(0.18, Math.min(0.85, 0.38 + star.y * 0.35));
+      state.targetDist = Math.max(5.8, Math.min(9.5, state.dist));
+    }
+    const info = TYPE_INFO[star.visualType] || TYPE_INFO.semantic;
+    const wsLabel = !star.workspace || star.workspace === 'global' ? '全局' : (star.workspace.split('/').pop() || star.workspace);
+    const statusBadge = star.isActive ? '' : `<span class="badge" style="color:#c4bede">${star.status === 'superseded' ? '已演化替代' : '已归档'}</span>`;
+    panelMeta.innerHTML =
+      `<svg class="p-star-svg" viewBox="0 0 24 24"><path d="M12 1.5L14.3 9.7L22.5 12L14.3 14.3L12 22.5L9.7 14.3L1.5 12L9.7 9.7L12 1.5Z" fill="${info.hex}"/></svg>` +
+      `<strong style="color:${info.hex}">#${star.id}</strong>` +
+      `<span class="badge" style="border-color:${info.hex}55;color:${info.hex}">${info.label}</span>` +
+      `<span class="badge">${wsLabel}</span>` +
+      (star.pinned ? `<span class="badge" style="color:#ffd696;border-color:rgba(255,214,150,0.4)">置顶核心</span>` : '') +
+      statusBadge +
+      (star.key ? `<span style="opacity:0.65;font-family:monospace">${star.key}</span>` : '');
+
+    panelText.textContent = star.content || '';
+    const starsStr = '★'.repeat(Math.round(star.importance || 3)) + '☆'.repeat(5 - Math.round(star.importance || 3));
+    const recPct = Math.round((star.recency || 0) * 100);
+    panelStats.innerHTML =
+      `<span style="color:#ffd696">${starsStr}</span>` +
+      `<span class="strength-bar">活跃度 ${recPct}% <span class="bar-track"><span class="bar-fill" style="width:${recPct}%"></span></span></span>` +
+      `<span>召回 ${star.access_count || 0} 次</span>` +
+      `<span>${String(star.updated_at || '').slice(0, 16)}</span>`;
+
+    const tags = Array.isArray(star.tags) ? star.tags : [];
+    panelTags.innerHTML = tags.map(t => `<span class="tag-chip">#${t}</span>`).join('');
+    panelTags.style.display = tags.length ? 'flex' : 'none';
+
+    const links = getConstellationLinks(star).filter(l => l.real);
+    panelLinks.innerHTML = '';
+    if (links.length) {
+      links.forEach(l => {
+        const btn = document.createElement('button');
+        btn.className = 'link-chip';
+        const rName = REL_LABELS[l.relation] || l.relation;
+        const arrow = l.dir === 'out' ? `→ ${rName} →` : `← ${rName} ←`;
+        const snippet = String(l.peer.content || '').slice(0, 16);
+        btn.textContent = `${arrow} #${l.peer.id} ${snippet}${l.peer.content.length > 16 ? '…' : ''}`;
+        btn.addEventListener('click', () => selectStar(l.peer, true));
+        panelLinks.appendChild(btn);
+      });
+      panelLinks.style.display = 'flex';
+    } else {
+      panelLinks.style.display = 'none';
+    }
+
+    const liked = likedSet.has(star.id);
+    btnLike.textContent = liked ? '♥' : '♡';
+    btnLike.classList.toggle('liked', liked);
+    panel.classList.add('show');
+  }
+
+  btnLike.addEventListener('click', () => {
+    if (!state.selected) return;
+    if (likedSet.has(state.selected.id)) likedSet.delete(state.selected.id);
+    else likedSet.add(state.selected.id);
+    persistLikes();
+    selectStar(state.selected, false);
+  });
+  document.getElementById('btnClose').addEventListener('click', () => selectStar(null));
+
+  // Toolbar Bindings
+  const searchInput = document.getElementById('searchInput');
+  const searchClear = document.getElementById('searchClear');
+  searchInput.addEventListener('input', () => {
+    state.search = searchInput.value;
+    searchClear.classList.toggle('show', Boolean(state.search));
+    applyFilters();
+  });
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    state.search = '';
+    searchClear.classList.remove('show');
+    applyFilters();
+  });
+  wsSelect.addEventListener('change', () => {
+    state.workspace = wsSelect.value;
+    applyFilters();
+  });
+  document.getElementById('typeChips').addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    document.querySelectorAll('#typeChips .chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    state.typeFilter = btn.dataset.type;
+    applyFilters();
+  });
+  const btnInactive = document.getElementById('btnInactive');
+  btnInactive.addEventListener('click', () => {
+    state.showInactive = !state.showInactive;
+    btnInactive.classList.toggle('on', state.showInactive);
+    applyFilters();
+  });
+  function replayIntro() {
+    state.introT = 0;
+    state.dist = 13.8;
+    state.targetTheta = null; state.targetPhi = null; state.targetDist = null;
+  }
+  document.getElementById('btnReplay').addEventListener('click', replayIntro);
+  document.getElementById('btnPortrait').addEventListener('click', () => {
+    document.body.classList.toggle('portrait');
+    resize();
+  });
+  document.getElementById('btnFull').addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.().catch(() => {});
+  });
+  document.getElementById('btnHide').addEventListener('click', () => {
+    document.body.classList.toggle('hide-ui');
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement === searchInput) {
+      if (e.key === 'Escape') searchInput.blur();
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === 'r') replayIntro();
+    else if (k === 'v') { document.body.classList.toggle('portrait'); resize(); }
+    else if (k === 'f') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+      else document.exitFullscreen?.().catch(() => {});
+    }
+    else if (k === 'h') document.body.classList.toggle('hide-ui');
+    else if (e.key === 'Escape') {
+      if (document.body.classList.contains('hide-ui')) document.body.classList.remove('hide-ui');
+      else selectStar(null);
+    }
+  });
+
+  // Auto-fade toolbar on idle
+  const toolsEl = document.getElementById('tools');
+  function wakeHud() {
+    state.idleTimer = 0;
+    toolsEl.classList.remove('hud-idle');
+  }
+  window.addEventListener('mousemove', wakeHud, { passive: true });
+  window.addEventListener('touchstart', wakeHud, { passive: true });
+
+  // ---- Canvas Setup & Orbit Interaction ----
+  const viewport = document.getElementById('viewport');
+  const canvas = document.getElementById('sky');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('tooltip');
+  const tipHead = document.getElementById('tipHead');
+  const tipBody = document.getElementById('tipBody');
+
+  let W = 0, H = 0, DPR = 1, FOCAL = 800;
+  function resize() {
+    const rect = viewport.getBoundingClientRect();
+    W = Math.max(1, Math.round(rect.width));
+    H = Math.max(1, Math.round(rect.height));
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    FOCAL = Math.min(W, H) * 1.05;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function pickStarAt(mx, my) {
+    let best = null, bestD = 26;
+    for (let i = 0; i < STARS.length; i++) {
+      const s = STARS[i];
+      if (!s.visible || s.depth <= 0.2) continue;
+      const d = Math.hypot(mx - s.sx, my - s.sy);
+      const hitR = Math.max(16, s.sr * 2.4);
+      if (d < hitR && d < bestD) { best = s; bestD = d; }
+    }
+    return best;
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    state.dragging = true;
+    state.dragMoved = false;
+    state.lastX = e.clientX;
+    state.lastY = e.clientY;
+    state.targetTheta = null; state.targetPhi = null; state.targetDist = null;
+  });
+  window.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    if (state.dragging) {
+      const dx = e.clientX - state.lastX;
+      const dy = e.clientY - state.lastY;
+      if (Math.hypot(dx, dy) > 3) state.dragMoved = true;
+      state.theta -= dx * 0.0055;
+      state.phi = Math.max(-1.15, Math.min(1.22, state.phi + dy * 0.0055));
+      state.lastX = e.clientX;
+      state.lastY = e.clientY;
+      tooltip.classList.remove('show');
+      return;
+    }
+    const hit = pickStarAt(mx, my);
+    state.hovered = hit;
+    canvas.style.cursor = hit ? 'pointer' : 'grab';
+    if (hit && (!state.selected || state.selected.id !== hit.id)) {
+      const info = TYPE_INFO[hit.visualType] || TYPE_INFO.semantic;
+      tipHead.innerHTML = `<span style="color:${info.hex}">✦ #${hit.id} ${info.label}</span><span>· ${'★'.repeat(Math.round(hit.importance || 3))}</span>`;
+      tipBody.textContent = hit.content || '';
+      tooltip.style.left = `${Math.max(150, Math.min(W - 150, hit.sx))}px`;
+      tooltip.style.top = `${Math.max(76, hit.sy)}px`;
+      tooltip.classList.add('show');
+    } else {
+      tooltip.classList.remove('show');
+    }
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!state.dragging) return;
+    state.dragging = false;
+    if (!state.dragMoved) {
+      const rect = canvas.getBoundingClientRect();
+      const hit = pickStarAt(e.clientX - rect.left, e.clientY - rect.top);
+      selectStar(hit, false);
+    }
+  });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    state.targetDist = null;
+    state.dist = Math.max(3.6, Math.min(20.0, state.dist * (1 + e.deltaY * 0.0009)));
+  }, { passive: false });
+
+  // Touch orbit
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      state.dragging = true; state.dragMoved = false;
+      state.lastX = e.touches[0].clientX; state.lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (state.dragging && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - state.lastX;
+      const dy = e.touches[0].clientY - state.lastY;
+      if (Math.hypot(dx, dy) > 4) state.dragMoved = true;
+      state.theta -= dx * 0.006;
+      state.phi = Math.max(-1.1, Math.min(1.2, state.phi + dy * 0.006));
+      state.lastX = e.touches[0].clientX; state.lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchend', () => { state.dragging = false; });
+
+  if (INIT_PICK !== null && starById.has(INIT_PICK)) {
+    setTimeout(() => selectStar(starById.get(INIT_PICK), false), 150);
+  }
+
+  // ---- Main Render Loop ----
+  let lastNow = performance.now();
+  let timeSec = 0;
+
+  function easeOutCubic(x) { return 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3); }
+  function easeOutBack(x) {
+    const t = Math.max(0, Math.min(1, x));
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function render(now) {
+    const dt = Math.min(0.05, (now - lastNow) / 1000);
+    lastNow = now;
+    timeSec += dt;
+
+    if (!STILL_MODE) {
+      state.introT += dt;
+      state.idleTimer += dt;
+      if (state.idleTimer > 2.8 && document.activeElement !== searchInput) {
+        toolsEl.classList.add('hud-idle');
+      }
+      if (!state.dragging) {
+        state.theta += dt * 0.036;
+      }
+    }
+
+    // Intro choreography (4.0s)
+    const fadeIn = STILL_MODE ? 1 : Math.min(1, state.introT / 0.75);
+    let camDist = state.dist;
+    let phiOff = 0;
+    if (!STILL_MODE && state.introT < 3.6 && state.targetDist === null) {
+      const k = easeOutCubic(state.introT / 3.4);
+      camDist = 13.8 + (9.2 - 13.8) * k;
+      state.dist = camDist;
+      phiOff = (1 - k) * 0.22;
+    }
+
+    // Smooth camera fly-to target
+    if (state.targetTheta !== null) {
+      let diff = ((state.targetTheta - state.theta + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      state.theta += diff * Math.min(1, dt * 4.5);
+      if (Math.abs(diff) < 0.008) state.targetTheta = null;
+    }
+    if (state.targetPhi !== null) {
+      state.phi += (state.targetPhi - state.phi) * Math.min(1, dt * 4.5);
+      if (Math.abs(state.targetPhi - state.phi) < 0.005) state.targetPhi = null;
+    }
+    if (state.targetDist !== null) {
+      state.dist += (state.targetDist - state.dist) * Math.min(1, dt * 4.5);
+      camDist = state.dist;
+      if (Math.abs(state.targetDist - state.dist) < 0.02) state.targetDist = null;
+    }
+
+    const cosT = Math.cos(state.theta), sinT = Math.sin(state.theta);
+    const phiEff = state.phi + phiOff;
+    const cosP = Math.cos(phiEff), sinP = Math.sin(phiEff);
+    const cx = W * 0.5, cy = H * 0.5;
+
+    function project(x, y, z) {
+      const x1 = x * cosT - z * sinT;
+      const z1 = x * sinT + z * cosT;
+      const y2 = y * cosP - z1 * sinP;
+      const z2 = y * sinP + z1 * cosP;
+      const depth = camDist - z2;
+      if (depth <= 0.15) return null;
+      const s = FOCAL / depth;
+      return { sx: cx + x1 * s, sy: cy - y2 * s, s, depth };
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+
+    // 1. Deep space radial gradient
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.68);
+    bgGrad.addColorStop(0, '#0a0513');
+    bgGrad.addColorStop(0.55, '#030107');
+    bgGrad.addColorStop(1, '#000000');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle central nebula mist
+    const mistGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.42);
+    mistGrad.addColorStop(0, `rgba(136, 114, 210, ${0.075 * fadeIn})`);
+    mistGrad.addColorStop(0.5, `rgba(92, 68, 160, ${0.03 * fadeIn})`);
+    mistGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = mistGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // 2. Galaxy particles (batched by color bucket for crisp points + soft sprites for distant/halo)
+    ctx.globalCompositeOperation = 'lighter';
+    const crispBuckets = new Map();
+    for (let i = 0; i < PARTICLES.length; i++) {
+      const p = PARTICLES[i];
+      const pr = project(p.x, p.y, p.z);
+      if (!pr || pr.sx < -40 || pr.sx > W + 40 || pr.sy < -40 || pr.sy > H + 40) continue;
+      const alpha = p.a * fadeIn;
+      if (p.slow) {
+        const sp = dotSprite(p.rgb, true);
+        const rad = Math.max(1.8, p.sz * (pr.s / 115));
+        ctx.globalAlpha = Math.min(0.85, alpha);
+        ctx.drawImage(sp, pr.sx - rad, pr.sy - rad, rad * 2, rad * 2);
+      } else {
+        const bKey = p.rgb;
+        let arr = crispBuckets.get(bKey);
+        if (!arr) { arr = []; crispBuckets.set(bKey, arr); }
+        arr.push(pr.sx, pr.sy, Math.max(0.55, p.sz * (pr.s / 145)), alpha);
+      }
+    }
+    crispBuckets.forEach((arr, rgb) => {
+      ctx.fillStyle = `rgb(${rgb})`;
+      for (let i = 0; i < arr.length; i += 4) {
+        ctx.globalAlpha = Math.min(0.9, arr[i + 3]);
+        const r = arr[i + 2];
+        ctx.fillRect(arr[i] - r * 0.5, arr[i + 1] - r * 0.5, r, r);
+      }
+    });
+
+    // 3. Dark cosmic dust lanes (source-over)
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < NEB_DUST.length; i++) {
+      const d = NEB_DUST[i];
+      const pr = project(d.x, d.y, d.z);
+      if (!pr) continue;
+      const rad = d.sz * pr.s * 0.62;
+      if (pr.sx < -rad || pr.sx > W + rad || pr.sy < -rad || pr.sy > H + rad) continue;
+      ctx.globalAlpha = d.a * fadeIn;
+      ctx.drawImage(d.tex, pr.sx - rad, pr.sy - rad, rad * 2, rad * 2);
+    }
+
+    // 4. Breathing Dual Galactic Center Core
+    ctx.globalCompositeOperation = 'lighter';
+    const breathe = 0.88 + 0.12 * Math.sin(timeSec * 1.45);
+    const coreSp = dotSprite('238,226,255', true);
+    [[-0.24, 0, 0], [0.24, 0, 0]].forEach(([cx3, cy3, cz3]) => {
+      const pr = project(cx3, cy3, cz3);
+      if (!pr) return;
+      const r = pr.s * 0.52 * breathe;
+      ctx.globalAlpha = 0.34 * fadeIn;
+      ctx.drawImage(coreSp, pr.sx - r, pr.sy - r, r * 2, r * 2);
+    });
+
+    // 5. Project all Memory Stars
+    for (let i = 0; i < STARS.length; i++) {
+      const s = STARS[i];
+      const pr = project(s.x, s.y, s.z);
+      if (!pr) { s.depth = -1; continue; }
+      s.sx = pr.sx; s.sy = pr.sy; s.depth = pr.depth;
+      s.sr = Math.max(2.6, s.size * (pr.s / 135));
+    }
+
+    // 6. Click-only Knowledge Graph Constellations (Drawn behind memory stars)
+    if (state.selected && state.selected.visible && state.selected.depth > 0) {
+      const sel = state.selected;
+      const links = getConstellationLinks(sel);
+      links.forEach((lk, li) => {
+        const peer = lk.peer;
+        if (!peer.visible && !lk.real) return;
+        if (peer.depth <= 0) return;
+
+        const mx = (sel.sx + peer.sx) * 0.5;
+        const my = (sel.sy + peer.sy) * 0.5 - 24 - (li % 2) * 14;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.beginPath();
+        ctx.moveTo(sel.sx, sel.sy);
+        ctx.quadraticCurveTo(mx, my, peer.sx, peer.sy);
+        ctx.strokeStyle = lk.real
+          ? (lk.relation === 'supersedes' ? 'rgba(186, 174, 240, 0.55)' : 'rgba(255, 224, 168, 0.62)')
+          : 'rgba(196, 212, 255, 0.28)';
+        ctx.lineWidth = lk.real ? 1.5 : 0.9;
+        if (!lk.real || lk.relation === 'supersedes') ctx.setLineDash([4, 5]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Animated light pulse along real knowledge graph edges
+        if (lk.real && !STILL_MODE) {
+          const t = (timeSec * 0.42 + li * 0.29) % 1;
+          const u = 1 - t;
+          const px = u * u * sel.sx + 2 * u * t * mx + t * t * peer.sx;
+          const py = u * u * sel.sy + 2 * u * t * my + t * t * peer.sy;
+          const psp = dotSprite('255,236,196', false);
+          ctx.globalAlpha = 0.85;
+          ctx.drawImage(psp, px - 8, py - 8, 16, 16);
+        }
+
+        // Relation pill label at curve midpoint
+        if (lk.real) {
+          const lx = 0.25 * sel.sx + 0.5 * mx + 0.25 * peer.sx;
+          const ly = 0.25 * sel.sy + 0.5 * my + 0.25 * peer.sy;
+          const txt = REL_LABELS[lk.relation] || lk.relation;
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.font = '11px system-ui, sans-serif';
+          const tw = ctx.measureText(txt).width + 12;
+          ctx.fillStyle = 'rgba(12, 10, 24, 0.78)';
+          ctx.beginPath();
+          ctx.roundRect(lx - tw / 2, ly - 10, tw, 19, 9);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 214, 150, 0.35)';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.fillStyle = '#ffe5b8';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(txt, lx, ly);
+        }
+        ctx.restore();
+      });
+    }
+
+    // 7. Render Memory Stars (back-to-front by depth)
+    const drawOrder = STARS.filter(s => s.visible && s.depth > 0).sort((a, b) => b.depth - a.depth);
+    const connectedIds = new Set();
+    if (state.selected) {
+      connectedIds.add(state.selected.id);
+      getConstellationLinks(state.selected).forEach(l => connectedIds.add(l.peer.id));
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < drawOrder.length; i++) {
+      const s = drawOrder[i];
+      const ignite = STILL_MODE ? 1 : Math.max(0, easeOutBack((state.introT - s.igniteAt) / 0.55));
+      if (ignite <= 0.02) continue;
+
+      const isSel = state.selected && state.selected.id === s.id;
+      const isHov = state.hovered && state.hovered.id === s.id;
+      const isConn = connectedIds.has(s.id);
+      const isLiked = likedSet.has(s.id);
+      const isNewest = newestStar && newestStar.id === s.id;
+
+      let alpha = s.isActive ? (0.55 + 0.45 * s.recency) : 0.32;
+      if (s.dimmed && !isSel && !isConn) alpha *= 0.16;
+      else if (state.selected && !isConn) alpha *= 0.42;
+
+      const twinkle = 0.90 + 0.10 * Math.sin(timeSec * 2.3 + s.phase);
+      const r = Math.max(0.8, s.sr * Math.min(1.25, ignite) * (isSel ? 1.38 : isHov ? 1.2 : 1.0) * twinkle);
+
+      const softSp = dotSprite(s.rgbStr, true);
+      const coreStarSp = dotSprite(s.rgbStr, false);
+
+      // Layer A: wide soft atmospheric halo
+      ctx.globalAlpha = Math.min(1, alpha * 0.45 * fadeIn);
+      ctx.drawImage(softSp, s.sx - r * 4.6, s.sy - r * 4.6, r * 9.2, r * 9.2);
+
+      // Layer B: luminous mid corona
+      ctx.globalAlpha = Math.min(1, alpha * 0.82 * fadeIn);
+      ctx.drawImage(softSp, s.sx - r * 2.1, s.sy - r * 2.1, r * 4.2, r * 4.2);
+
+      // Layer C: hot white core
+      ctx.globalAlpha = Math.min(1, alpha * fadeIn);
+      ctx.drawImage(coreStarSp, s.sx - r * 1.1, s.sy - r * 1.1, r * 2.2, r * 2.2);
+
+      // Pinned or Liked stars get a delicate halo ring + orbiting 4-point sparkle
+      if ((s.pinned || isLiked) && !s.dimmed) {
+        ctx.save();
+        const haloR = Math.max(2, r * 2.8);
+        ctx.strokeStyle = isLiked ? 'rgba(255, 168, 214, 0.42)' : 'rgba(255, 224, 168, 0.28)';
+        ctx.lineWidth = 0.9;
+        ctx.globalAlpha = alpha * 0.7;
+        ctx.beginPath();
+        ctx.arc(s.sx, s.sy, haloR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const oa = timeSec * 0.85 + s.phase;
+        const ox = s.sx + Math.cos(oa) * haloR;
+        const oy = s.sy + Math.sin(oa) * haloR;
+        ctx.fillStyle = isLiked ? '#ffaad6' : '#ffe6b8';
+        ctx.beginPath();
+        const spR = 3.2;
+        ctx.moveTo(ox, oy - spR); ctx.lineTo(ox + spR * 0.35, oy - spR * 0.35);
+        ctx.lineTo(ox + spR, oy); ctx.lineTo(ox + spR * 0.35, oy + spR * 0.35);
+        ctx.lineTo(ox, oy + spR); ctx.lineTo(ox - spR * 0.35, oy + spR * 0.35);
+        ctx.lineTo(ox - spR, oy); ctx.lineTo(ox - spR * 0.35, oy - spR * 0.35);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Selected ring
+      if (isSel) {
+        ctx.save();
+        const selR = Math.max(2, r * 3.4 + Math.sin(timeSec * 3.5) * 1.6);
+        ctx.strokeStyle = `rgba(${s.rgbStr}, 0.78)`;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.arc(s.sx, s.sy, selR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Intro "叮" burst ring on newest memory (t = 2.5s .. 4.5s)
+      if (isNewest && !STILL_MODE && state.introT > 2.45 && state.introT < 5.0) {
+        const bt = (state.introT - 2.45) / 1.4;
+        if (bt >= 0 && bt < 1) {
+          const ringR = Math.max(1, r * (2.0 + easeOutCubic(bt) * 10.5));
+          ctx.save();
+          ctx.strokeStyle = `rgba(255, 246, 224, ${(1 - bt) * 0.85})`;
+          ctx.lineWidth = 1.8 * (1 - bt) + 0.4;
+          ctx.beginPath();
+          ctx.arc(s.sx, s.sy, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // 8. Soft cosmic edge vignette
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    const vig = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.32, cx, cy, Math.max(W, H) * 0.78);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(1, 1, 4, 0.68)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+
+    if (!STILL_MODE) requestAnimationFrame(render);
+  }
+
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
