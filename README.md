@@ -155,6 +155,13 @@ agy-local-memory/
 
 ---
 
+## 🔗 姊妹插件推荐
+
+搭配同系列悬浮桌宠插件一起使用，可在猫娘桌宠右键菜单或效率工具箱中**一键直达你的记忆星图**：
+* 🐱 **[agy-gemini-pet](https://github.com/pvijaypal2000-tech/agy-gemini-pet)** — Gemini 蓝紫猫娘 · Antigravity 透明悬浮监测桌宠（5 套内置皮肤、0 Token 实时账单监测、6 音色音效台、番茄钟与星喵贪吃蛇）
+
+---
+
 ## 🙏 致谢与开源协议
 
 本项目采用 **[MIT License](LICENSE)** 开源。
