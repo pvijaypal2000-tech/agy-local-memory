@@ -15,6 +15,10 @@
   <img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="MIT License" />
 </p>
 
+<p align="center">
+  <img src="assets/nebula-preview.png" width="100%" alt="Antigravity Local Memory · 交互式记忆星图实景预览" />
+</p>
+
 ---
 
 ## ✨ 为什么做这个插件？
@@ -62,11 +66,13 @@ flowchart LR
 
 ### 安装步骤
 
-1. 下载本仓库（点击右上角 `Code` → `Download ZIP` 解压，或 `git clone` 到本地）：
-   ```bash
-   git clone https://github.com/pvijaypal2000-tech/agy-local-memory.git
-   cd agy-local-memory
-   ```
+1. 获取安装包（任选一种方式）：
+   * **方式 A（推荐，免装 Git）**：前往右侧 **[Releases 页面](https://github.com/pvijaypal2000-tech/agy-local-memory/releases/latest)** 下载 `agy-local-memory-v2.2.0.zip` 并解压到任意文件夹。
+   * **方式 B（Git 克隆）**：
+     ```bash
+     git clone https://github.com/pvijaypal2000-tech/agy-local-memory.git
+     cd agy-local-memory
+     ```
 2. 运行对应平台的一键安装脚本（脚本会自动复制插件、生成适配本机 Python 路径的配置，并运行全套自动化自检）：
    * **Windows**：直接双击 `install.bat`（或在终端运行 `.\install.bat`）
    * **macOS / Linux**：
